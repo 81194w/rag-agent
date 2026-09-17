@@ -1,7 +1,6 @@
-"""RAG 单元1：递归分块（recursive chunking）
+"""递归分块：按分隔符优先级把长文档切成 <= chunk_size 的小块。
 
-把长文档按「分隔符优先级」递归切成 <= chunk_size 的小块，
-尽量在段落/句子边界下刀，避免劈开语义。
+优先在段落/句子边界下刀而非按固定字数硬切，避免把语义单元劈成两半。
 
 用法：
     python rag_chunk.py
@@ -11,22 +10,21 @@ try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
     pass
-# pyright: ignore[reportUndefinedVariable]
-# 刀列表：从粗到细，最后一个 "" 是逐字符兜底
+# 分隔符优先级：从粗到细，最后的 "" 表示逐字符兜底
 SEPARATORS = ["\n\n", "\n", "。", " ", ""]
 
 
 def split_text(text, separators, chunk_size):
     """递归切块：返回长度 <= chunk_size 的字符串列表。"""
-    # 基准情形1：已经够小，直接成一整块
+    # 已经够小，直接成块
     if len(text) <= chunk_size:
         return [text]
 
-    # 基准情形2：刀用完了，逐字符硬切
+    # 分隔符用尽，逐字符硬切
     if not separators:
         return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
-    # 递归情形：用最粗的刀切
+    # 用当前最粗的分隔符切，超长的再递归换更细的
     sep = separators[0]
     parts = text.split(sep)
 
@@ -41,7 +39,7 @@ def split_text(text, separators, chunk_size):
             cur = p
     merged.append(cur)
 
-    # 够小的收下，超长的换更细的刀递归
+    # 够小的收下，超长的用更细的分隔符递归
     result = []
     for chunk in merged:
         if len(chunk) <= chunk_size:
@@ -52,7 +50,7 @@ def split_text(text, separators, chunk_size):
 
 
 if __name__ == "__main__":
-    CHUNK_SIZE = 500  # 块大小（几百~一千多字）
+    CHUNK_SIZE = 500  # 每块的字符数上限
     with open("corpus_chapter3.txt", encoding="utf-8") as f:
         corpus = f.read()
 

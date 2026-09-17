@@ -1,12 +1,11 @@
-"""RAG 单元2：向量检索（vector retrieval）
+"""RAG 全链路：召回 → rerank → 溯源 → 生成。
 
-把「文字像不像」换成「向量近不近」：块和 query 各自向量化，
-用余弦相似度量方向夹角，取 top-k 最相关的块喂给 LLM。
+块与 query 各自向量化，按余弦相似度召回 top-k，再由 LLM 精排打分，
+最后拼进 prompt 让模型带 [编号] 引用作答。
 
 用法：
     python rag_retrieve.py
 """
-# pyright: ignore[reportUndefinedVariable]
 import os
 import json
 import sys
@@ -53,15 +52,12 @@ def embed_2gram(text, D=256):
 
 
 def cos(a, b):
-    # 返回 a、b 的余弦相似度（值域 [-1, 1]）
-    # 提示：点积 sum(a[i]*b[i]...)、模长 sqrt(sum(x*x...))、相除
+    """余弦相似度，值域 [-1, 1]。"""
     return dot(a,b)/(math.sqrt(dot(a, a))*math.sqrt(dot(b, b)))
 
 
 def build_index(chunks, embed_fn):
-    # 返回 dict：{块编号: (文本, 向量)}
-    # 提示：enumerate + embed
-    # 注意 value 是「(文本, 向量)」元组——文本一起存进来，search 才能拿回块文本
+    # {块编号: (文本, 向量)}——文本跟着向量一起存，search 才能取回原文
     index={}
     for i,chunk in enumerate(chunks):
         index[i]=(chunk,embed_fn(chunk))
@@ -69,8 +65,7 @@ def build_index(chunks, embed_fn):
 
 
 def search(query, index, k, embed_fn):
-    # 返回最相关的 k 个块的【文本】列表
-    # 提示：embed(query) → 分数表 → max+pop 循环 k 次收集块编号 → 按编号从 index 取回文本
+    """按余弦相似度召回 top-k，返回 [(块编号, 文本), ...]。"""
     score={}
     q=embed_fn(query)
     for i, (text, vec) in index.items():
@@ -80,6 +75,7 @@ def search(query, index, k, embed_fn):
 
 
 def rerank(query, candidates):
+    """用 LLM 给候选块打 0~100 分并重排，返回 top-N。"""
     scored_list=[]
     for (idx,chunk) in candidates:
         score=None
@@ -116,6 +112,7 @@ def rerank(query, candidates):
 
 
 def generate(query, top):
+    """让模型只依据候选材料作答并标注 [编号]，返回 (答案, {编号: 文本})。"""
     context = "\n".join(f"【{idx}】 {text}" for idx,text in top)
     system = "只根据下面材料回答，每句话用 [编号] 标注依据，材料里没有就说没提及\n" + context
     messages = [ {"role":"system", "content": system}, {"role":"user", "content": query} ]
@@ -126,7 +123,7 @@ def generate(query, top):
     return (content,sources)
 
 if __name__ == "__main__":
-    from rag_chunk import split_text, SEPARATORS   # 复用单元1 的分块
+    from rag_chunk import split_text, SEPARATORS   # 复用分块逻辑，避免重复实现
 
     CHUNK_SIZE = 500
     with open("corpus_chapter3.txt", encoding="utf-8") as f:
@@ -144,10 +141,10 @@ if __name__ == "__main__":
         for (idx,text) in top:
             preview = text[:100].replace("\n", " ")
             print(f"  - [{idx}] {preview}...")
-        answer, sources = generate(query, top)   # 解包：答案 + 来源字典
+        answer, sources = generate(query, top)
         print(f"--- 答案 ---")
         print(answer)
         print(f"--- 来源 ---")
-        for idx, text in sources.items():        # sources 是 {编号: 文本}
+        for idx, text in sources.items():
             print(f"[{idx}] {text[:80]}...")    
         print()
