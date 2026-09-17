@@ -69,6 +69,8 @@ def evaluate(v_fn):
 
 if __name__ == "__main__":
     variants = [("2-gram", v_2gram), ("BGE", v_bge), ("BGE+rerank", v_rerank)]
+    r_col, h_col = f"recall@{K}", f"hit@{K}"
+    print(f"{'variant':<12}{r_col:>12}{h_col:>12}{'MRR':>12}")
     for name, v in variants:
         r, h, m = evaluate(v)
-        print(name, r, h, m)
+        print(f"{name:<12}{r:>12.3f}{h:>12.3f}{m:>12.3f}")

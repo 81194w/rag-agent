@@ -131,7 +131,8 @@ if __name__ == "__main__":
 
     chunks = split_text(corpus, SEPARATORS, CHUNK_SIZE)
     index = build_index(chunks, embed)
-    print(f"已建索引：{len(chunks)} 个块，向量维度 {768}\n")
+    dim = len(next(iter(index.values()))[1])   # 从实际向量取维度，别写死
+    print(f"已建索引：{len(chunks)} 个块，向量维度 {dim}\n")
 
     for query in ["检索增强生成", "知识过期", "用户记忆"]:
         print(f"=== 查询：{query} ===")

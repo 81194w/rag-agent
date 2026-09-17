@@ -39,16 +39,26 @@
 pip install openai fastembed
 ```
 
-- 首次运行会自动下载 BGE 中文 embedding 模型 `BAAI/bge-small-zh-v1.5`。
+- 首次运行会自动下载 BGE 中文 embedding 模型 `BAAI/bge-small-zh-v1.5`（512 维）。
 - `rerank` / `generate` 两步调用 DeepSeek，需要环境变量 `DEEPSEEK_API_KEY`。
+
+> ⚠️ **国内网络需先设镜像**，否则直连 HuggingFace 会超时（`WinError 10060`）：
+>
+> ```bash
+> export HF_ENDPOINT=https://hf-mirror.com
+> export HF_HUB_DISABLE_XET=1
+> ```
+>
+> PowerShell： `$env:HF_ENDPOINT="https://hf-mirror.com"; $env:HF_HUB_DISABLE_XET="1"`
 
 ### 命令
 
 ```bash
-# 单 query 全链路：分块 → 检索 → rerank → 溯源 → 生成
+# 全链路：分块 → 检索 → rerank → 溯源 → 生成（内置 3 个示例 query）
 python rag_retrieve.py
 
 # 评测：3 变体 × 3 指标，打印对比表
+# 注意：BGE+rerank 变体会串行调用约 40 次 DeepSeek，耗时较长且依赖服务稳定
 python eval_rag.py
 ```
 
@@ -61,6 +71,9 @@ python eval_rag.py
 | 2-gram 稀疏 | 0.333 | 0.75 | 0.5625 |
 | BGE 稠密 | 0.271 | 0.375 | 0.375 |
 | BGE + rerank | 0.438 | 0.5 | 0.438 |
+
+> ⚠️ **样本量限制**：评测集仅 8 题，且 7/8 是字面题。这张表适合**横向比较三个变体**，
+> 不足以支撑「2-gram 优于稠密检索」这类普遍结论。扩充改写题比例见「已知改进点」。
 
 **结论**：rerank 能拉高 BGE（recall .271 → .438），但**追不平 2-gram 的 hit/MRR**——
 本评测集以「字面题」为主，BGE 在召回一步就漏了，rerank 排不到漏掉的块。
@@ -97,4 +110,13 @@ python eval_rag.py
 `corpus_chapter3.txt` 抽取自 **《深入理解 AI Agent：设计原理与工程实践》**（李博杰 著）第 3 章「用户记忆与知识库」，
 原书以 **Apache License 2.0** 开源：https://github.com/bojieli/ai-agent-book
 
-本仓库中的语料仅用于技术演示，版权归原作者所有；`extract_corpus.py` 提供从原始 HTML 抽取语料的脚本。
+本仓库中的语料仅用于技术演示，版权归原作者所有。
+
+`extract_corpus.py` 从 **`chapter3.html`（本仓未附带）** 抽取正文生成 `corpus_chapter3.txt`。
+要复现这一步，需先从原书在线版把第 3 章页面另存为 `chapter3.html` 放在仓库根目录，再运行 `python extract_corpus.py`。
+
+> 仓库已直接附带生成好的 `corpus_chapter3.txt`，跑示例和评测**不需要**执行此步。
+
+## 许可
+
+本仓库代码以 [Apache License 2.0](LICENSE) 授权。
